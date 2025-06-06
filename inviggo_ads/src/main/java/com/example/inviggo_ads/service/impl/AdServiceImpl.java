@@ -1,5 +1,7 @@
 package com.example.inviggo_ads.service.impl;
 
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -57,7 +59,7 @@ public class AdServiceImpl implements AdService {
         return true;
     }
     
-    public void deleteAd(Long id) {
+    public void deleteAd(UUID id) {
             //System.out.println(this.cottageRepository.getById(id));
         Ad ad = this.adRepository.findById(id).get();
         ad.setIsDeleted(true);

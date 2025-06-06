@@ -4,13 +4,22 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.UUID;
+
+import org.hibernate.annotations.GenericGenerator;
+
 
 @Entity
 @Table(name = "users")
 public class User {
     @Id
-    @GeneratedValue(generator = "user_id")
-    private Long id;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(
+        name = "UUID",
+        strategy = "org.hibernate.id.UUIDGenerator"
+    )
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
     
     @Column(name = "username", nullable = false, unique = true)
     private String username;
@@ -28,11 +37,11 @@ public class User {
     private Set<Ad> ads = new HashSet<>();
     
     // Getters and Setters
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

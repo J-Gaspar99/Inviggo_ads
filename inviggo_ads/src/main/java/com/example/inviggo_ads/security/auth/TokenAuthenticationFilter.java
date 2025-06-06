@@ -12,12 +12,14 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.example.inviggo_ads.utils.TokenUtils;
 
 import io.jsonwebtoken.ExpiredJwtException;
 
+@Component
 public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
 	private TokenUtils tokenUtils;

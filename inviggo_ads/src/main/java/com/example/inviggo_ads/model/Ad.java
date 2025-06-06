@@ -3,13 +3,21 @@ package com.example.inviggo_ads.model;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
+
+import org.hibernate.annotations.GenericGenerator;
 
 @Entity
 @Table(name = "ads")
 public class Ad {
     @Id
-    @GeneratedValue(generator = "ad_id")
-    private Long id;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(
+        name = "UUID",
+        strategy = "org.hibernate.id.UUIDGenerator"
+    )
+ //   @GeneratedValue(generator = "ad_id")
+    private UUID id;
     
     @Column(name = "name", nullable = false)
     private String name;
@@ -43,11 +51,11 @@ public class Ad {
 
     
     // Getters and Setters
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

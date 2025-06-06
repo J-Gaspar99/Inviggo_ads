@@ -2,13 +2,14 @@ package com.example.inviggo_ads.model.DTO;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import com.example.inviggo_ads.model.Category;
 import com.example.inviggo_ads.model.User;
 
 public class EditAdDTO {
 
-    private Long id;
+    private UUID id;
     private String name;
     private String description;
     private String imageUrl;
@@ -18,11 +19,11 @@ public class EditAdDTO {
     private String city;
     private LocalDateTime createdAt;
     
-    public Long getId() {
+    public UUID getId() {
             return id;
         }
     
-    public void setId(Long id) {
+    public void setId(UUID id) {
             this.id = id;
         }
     

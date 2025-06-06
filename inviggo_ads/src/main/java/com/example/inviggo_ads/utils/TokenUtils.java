@@ -13,20 +13,22 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import java.security.Key;
 
 @Component
 public class TokenUtils {
 
-	@Value("spring-security-example")
+	@Value("${jwt.app-name}")
 	private String APP_NAME;
 
-	@Value("somesecret")
-	public String SECRET;
+	@Value("${jwt.secret}")
+	private String SECRET;
 
-	@Value("1800000")
+	@Value("${jwt.expires-in}")
 	private int EXPIRES_IN;
 
-	@Value("Authorization")
+	@Value("${jwt.header}")
 	private String AUTH_HEADER;
 
 	private static final String AUDIENCE_WEB = "web";
@@ -34,11 +36,17 @@ public class TokenUtils {
 	private SignatureAlgorithm SIGNATURE_ALGORITHM = SignatureAlgorithm.HS512;
 
 	public String generateToken(String username) {
-		System.out.println(username);
-		return Jwts.builder().setIssuer(APP_NAME).setSubject(username).setAudience(generateAudience())
-				.setIssuedAt(new Date()).setExpiration(generateExpirationDate()).signWith(SIGNATURE_ALGORITHM, SECRET)
+		// Generate a secure key for HS512
+		Key key = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+		
+		return Jwts.builder()
+				.setIssuer(APP_NAME)
+				.setSubject(username)
+				.setAudience(generateAudience())
+				.setIssuedAt(new Date())
+				.setExpiration(generateExpirationDate())
+				.signWith(key, SIGNATURE_ALGORITHM)
 				.compact();
-
 	}
 
 	private String generateAudience() {
@@ -134,8 +142,6 @@ public class TokenUtils {
 
 		return (username != null && username.equals(userDetails.getUsername()));
 	}
-
-
 
 	public int getExpiredIn() {
 		return EXPIRES_IN;
