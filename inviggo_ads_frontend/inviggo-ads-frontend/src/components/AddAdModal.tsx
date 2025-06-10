@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Button, Form } from 'react-bootstrap';
-import axios from 'axios';
+import { adService } from '../services/addService';
+import { authService } from '../services/authService';
 
 interface AddAdModalProps {
     show: boolean;
@@ -17,6 +18,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
         category: 'TECHNOLOGY',
         city: ''
     });
+    const [error, setError] = useState<string | null>(null);
 
     const categories = [
         'CLOTHING', 'TOOLS', 'SPORTS', 'ACCESSORIES', 
@@ -25,51 +27,38 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+        
+        const token = authService.getToken();
+        if (!token) {
+            setError('You must be logged in to create an ad');
+            return;
+        }
+
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('You must be logged in to create an ad');
-                return;
-            }
-
-            console.log('Sending request with token:', token); // Debug log
-
-            const response = await axios.post('http://localhost:8081/api/ads', {
-                name: adData.name,
-                description: adData.description,
-                imageUrl: adData.imageUrl,
-                price: parseFloat(adData.price),
-                category: adData.category,
-                city: adData.city
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
+            const adDataToSend = {
+                ...adData,
+                price: parseFloat(adData.price)
+            };
+            
+            const response = await adService.createAd(adDataToSend);
+            console.log('Ad created:', response);
+            onHide();
+            onAdAdded();
+            setAdData({
+                name: '',
+                description: '',
+                imageUrl: '',
+                price: '',
+                category: 'TECHNOLOGY',
+                city: ''
             });
-
-            console.log('Response:', response.data); // Debug log
-
-            if (response.status === 200) {
-                onAdAdded();
-                onHide();
-                // Reset form
-                setAdData({
-                    name: '',
-                    description: '',
-                    imageUrl: '',
-                    price: '',
-                    category: 'TECHNOLOGY',
-                    city: ''
-                });
-            }
         } catch (error: any) {
             console.error('Error creating ad:', error);
-            if (error.response) {
-                console.error('Error response:', error.response.data);
-                alert(`Error creating ad: ${error.response.data.message || 'Unknown error'}`);
+            if (error.response?.status === 401) {
+                setError('Your session has expired. Please log in again.');
             } else {
-                alert('Error creating ad. Please try again.');
+                setError(error.response?.data?.message || 'Error creating ad. Please try again.');
             }
         }
     };
@@ -88,6 +77,11 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                 <Modal.Title>Add New Ad</Modal.Title>
             </Modal.Header>
             <Modal.Body>
+                {error && (
+                    <div className="alert alert-danger" role="alert">
+                        {error}
+                    </div>
+                )}
                 <Form onSubmit={handleSubmit}>
                     <Form.Group className="mb-3">
                         <Form.Label>Name</Form.Label>

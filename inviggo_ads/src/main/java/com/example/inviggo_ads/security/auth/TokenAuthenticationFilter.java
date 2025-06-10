@@ -22,10 +22,8 @@ import io.jsonwebtoken.ExpiredJwtException;
 @Component
 public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
-	private TokenUtils tokenUtils;
-
-	private UserDetailsService userDetailsService;
-
+	private final TokenUtils tokenUtils;
+	private final UserDetailsService userDetailsService;
 	protected final Log LOGGER = LogFactory.getLog(getClass());
 
 	public TokenAuthenticationFilter(TokenUtils tokenHelper, UserDetailsService userDetailsService) {
@@ -37,32 +35,44 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 	public void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws IOException, ServletException {
 
+		// Preskočimo proveru tokena za auth endpointove
+		if (request.getRequestURI().startsWith("/api/auth/")) {
+			chain.doFilter(request, response);
+			return;
+		}
+
+		LOGGER.debug("Processing request: " + request.getRequestURI());
+		LOGGER.debug("Authorization header: " + request.getHeader("Authorization"));
+		
 		String username;
-
 		String authToken = tokenUtils.getToken(request);
-
+		LOGGER.debug("Extracted token: " + authToken);
+		
 		try {
-
 			if (authToken != null) {
-
 				username = tokenUtils.getUsernameFromToken(authToken);
+				LOGGER.debug("Username from token: " + username);
+				
 				if (username != null) {
-
 					UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
+					LOGGER.debug("User details loaded: " + userDetails.getUsername());
+					
 					if (tokenUtils.validateToken(authToken, userDetails)) {
-
+						LOGGER.debug("Token validated successfully");
 						TokenBasedAuthentication authentication = new TokenBasedAuthentication(userDetails);
 						authentication.setToken(authToken);
 						SecurityContextHolder.getContext().setAuthentication(authentication);
+					} else {
+						LOGGER.debug("Token validation failed");
 					}
 				}
+			} else {
+				LOGGER.debug("No token found in request");
 			}
-
-		} catch (ExpiredJwtException ex) {
-			LOGGER.debug("Token expired!");
+		} catch (Exception ex) {
+			LOGGER.error("Error processing token: " + ex.getMessage(), ex);
 		}
-
+		
 		chain.doFilter(request, response);
 	}
 

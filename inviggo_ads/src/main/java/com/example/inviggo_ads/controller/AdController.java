@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.inviggo_ads.model.Ad;
 import com.example.inviggo_ads.model.DTO.AdAddDTO;
+import com.example.inviggo_ads.model.DTO.AdResponseDTO;
 import com.example.inviggo_ads.model.User;
 import com.example.inviggo_ads.repository.AdRepository;
 import com.example.inviggo_ads.repository.UserRepository;
@@ -53,9 +55,9 @@ public class AdController {
     }
 
     @PostMapping
+    @Transactional
     public ResponseEntity<?> createAd(@RequestBody AdAddDTO adDTO) {
         try {
-            // Get the current authenticated user
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !authentication.isAuthenticated()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -63,9 +65,6 @@ public class AdController {
             }
 
             String username = authentication.getName();
-            System.out.println("Authenticated user: " + username); // Debug log
-
-            // Find the user
             User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -86,25 +85,20 @@ public class AdController {
                 return ResponseEntity.badRequest().body("City is required");
             }
 
-            // Set user and create ad
-            adDTO.setUser(user);
+            // Create ad
             Ad ad = adDTO.toModel();
+            ad.setUser(user);
             ad.setCreatedAt(LocalDateTime.now());
-            ad.setIsDeleted(false);
+            ad.setDeleted(false);
 
             // Save the ad
             Ad savedAd = adRepository.save(ad);
             
-            // Create response
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Ad created successfully");
-            response.put("ad", savedAd);
+            // Create response DTO
+            AdResponseDTO responseDTO = new AdResponseDTO(savedAd);
             
-            return ResponseEntity.ok(response);
-
+            return ResponseEntity.ok(responseDTO);
         } catch (Exception e) {
-            System.err.println("Error creating ad: " + e.getMessage()); // Debug log
-            e.printStackTrace(); // Debug log
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error creating ad: " + e.getMessage());
         }

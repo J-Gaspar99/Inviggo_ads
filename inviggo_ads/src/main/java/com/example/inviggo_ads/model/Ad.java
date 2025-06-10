@@ -131,4 +131,8 @@ public class Ad {
     public boolean getIsDeleted() {
         return isDeleted;
     }
+
+    public void setDeleted(boolean b) {
+        // TODO Auto-generated method stub
+        this.isDeleted=b;    }
 }

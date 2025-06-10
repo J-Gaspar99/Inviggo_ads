@@ -3,7 +3,8 @@ package com.example.inviggo_ads.utils;
 import java.util.Date;
 import jakarta.servlet.http.HttpServletRequest;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -15,42 +16,36 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import java.security.Key;
+import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public class TokenUtils {
 
-	@Value("${jwt.app-name}")
-	private String APP_NAME;
-
-	@Value("${jwt.secret}")
-	private String SECRET;
-
-	@Value("${jwt.expires-in}")
-	private int EXPIRES_IN;
-
-	@Value("${jwt.header}")
-	private String AUTH_HEADER;
-
+	private static final Logger LOGGER = LoggerFactory.getLogger(TokenUtils.class);
+	private static final String SECRET = "inviggo_ads_secret_key_for_jwt_token_generation_and_validation_this_is_a_very_long_secret_key_to_ensure_security";
+	private static final long EXPIRES_IN = 3600000L; // 1 sat u milisekundama
+	
+	// Dodajemo nedostajuće konstante
+	private static final String APP_NAME = "InviggoAds";
 	private static final String AUDIENCE_WEB = "web";
+	private static final String AUTH_HEADER = "Authorization";
+	private static final SignatureAlgorithm SIGNATURE_ALGORITHM = SignatureAlgorithm.HS512;
 
-	private SignatureAlgorithm SIGNATURE_ALGORITHM = SignatureAlgorithm.HS512;
+	private Key signingKey;
 
-	public String generateToken(String username) {
-		// Generate a secure key for HS512
-		Key key = Keys.secretKeyFor(SignatureAlgorithm.HS512);
-		
-		return Jwts.builder()
-				.setIssuer(APP_NAME)
-				.setSubject(username)
-				.setAudience(generateAudience())
-				.setIssuedAt(new Date())
-				.setExpiration(generateExpirationDate())
-				.signWith(key, SIGNATURE_ALGORITHM)
-				.compact();
+	@PostConstruct
+	public void init() {
+		this.signingKey = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
 	}
 
-	private String generateAudience() {
-		return AUDIENCE_WEB;
+	public String generateToken(String username) {
+		return Jwts.builder()
+				.setSubject(username)
+				.setIssuedAt(new Date())
+				.setExpiration(generateExpirationDate())
+                .signWith(signingKey, SignatureAlgorithm.HS512)
+				.compact();
 	}
 
 	private Date generateExpirationDate() {
@@ -59,18 +54,14 @@ public class TokenUtils {
 
 	public String getToken(HttpServletRequest request) {
 		String authHeader = getAuthHeaderFromHeader(request);
-
 		if (authHeader != null && authHeader.startsWith("Bearer ")) {
-			//System.out.println(authHeader.substring(7));
 			return authHeader.substring(7);
 		}
-		
 		return null;
 	}
 
 	public String getUsernameFromToken(String token) {
 		String username;
-
 		try {
 			final Claims claims = this.getAllClaimsFromToken(token);
 			username = claims.getSubject();
@@ -79,75 +70,37 @@ public class TokenUtils {
 		} catch (Exception e) {
 			username = null;
 		}
-
 		return username;
 	}
 
-	public Date getIssuedAtDateFromToken(String token) {
-		Date issueAt;
-		try {
-			final Claims claims = this.getAllClaimsFromToken(token);
-			issueAt = claims.getIssuedAt();
-		} catch (ExpiredJwtException ex) {
-			throw ex;
-		} catch (Exception e) {
-			issueAt = null;
-		}
-		return issueAt;
-	}
-
-	public String getAudienceFromToken(String token) {
-		String audience;
-		try {
-			final Claims claims = this.getAllClaimsFromToken(token);
-			audience = claims.getAudience();
-		} catch (ExpiredJwtException ex) {
-			throw ex;
-		} catch (Exception e) {
-			audience = null;
-		}
-		return audience;
-	}
-
-	public Date getExpirationDateFromToken(String token) {
-		Date expiration;
-		try {
-			final Claims claims = this.getAllClaimsFromToken(token);
-			expiration = claims.getExpiration();
-		} catch (ExpiredJwtException ex) {
-			throw ex;
-		} catch (Exception e) {
-			expiration = null;
-		}
-
-		return expiration;
-	}
-
-	private Claims getAllClaimsFromToken(String token) {
-		Claims claims;
-		try {
-			claims = Jwts.parser().setSigningKey(SECRET).parseClaimsJws(token).getBody();
-		} catch (ExpiredJwtException ex) {
-			throw ex;
-		} catch (Exception e) {
-			claims = null;
-		}
-		return claims;
-	}
+    private Claims getAllClaimsFromToken(String token) {
+        Claims claims;
+        try {
+            claims = Jwts.parserBuilder()
+                    .setSigningKey(signingKey)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+        } catch (ExpiredJwtException ex) {
+            throw ex;
+        } catch (Exception e) {
+            LOGGER.error("Error parsing token: " + e.getMessage(), e);
+            claims = null;
+        }
+        return claims;
+    }
 
 	public Boolean validateToken(String token, UserDetails userDetails) {
-		User account = (User) userDetails;
 		final String username = getUsernameFromToken(token);
-		final Date created = getIssuedAtDateFromToken(token);
-
 		return (username != null && username.equals(userDetails.getUsername()));
 	}
 
-	public int getExpiredIn() {
-		return EXPIRES_IN;
+	public String getAuthHeaderFromHeader(HttpServletRequest request) {
+		return request.getHeader("Authorization");
 	}
 
-	public String getAuthHeaderFromHeader(HttpServletRequest request) {
-		return request.getHeader(AUTH_HEADER);
-	}
+    public long getExpiredIn() {  // Promenili smo povratni tip u long
+        return EXPIRES_IN;
+    }
+
 }

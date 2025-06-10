@@ -18,6 +18,8 @@ import com.example.inviggo_ads.security.auth.TokenAuthenticationFilter;
 import com.example.inviggo_ads.service.CustomUserDetailsService;
 import com.example.inviggo_ads.utils.TokenUtils;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import java.util.Arrays;
 
 @Configuration
@@ -42,6 +44,13 @@ public class SecurityConfig {
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("{\"error\": \"Authentication failed: " + authException.getMessage() + "\"}");
+                })
             )
             .addFilterBefore(tokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
