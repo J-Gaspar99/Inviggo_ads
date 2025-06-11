@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8081/api/auth';
+const API_URL = 'http://localhost:8081/api';
 
 interface LoginRequest {
   username: string;
@@ -25,13 +25,14 @@ interface AuthResponse {
 
 export const authService = {
   async login(username: string, password: string): Promise<LoginResponse> {
-    const response = await axios.post(`${API_URL}/login`, {
+    const response = await axios.post(`${API_URL}/auth/login`, {
       username,
       password
     });
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
+      localStorage.setItem('username', response.data.username);
     }
     
     return response.data;
@@ -39,29 +40,27 @@ export const authService = {
 
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('username');
   },
 
   getCurrentUser() {
     const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-
-        return JSON.parse(jsonPayload);
-      } catch (e) {
-        console.error("Failed to parse token", e);
-        return null;
-      }
+    const username = localStorage.getItem('username');
+    if (token && username) {
+      return {
+        username: username,
+        token: token
+      };
     }
     return null;
   },
 
   getToken: () => {
     return localStorage.getItem('token');
+  },
+
+  getUsername: () => {
+    return localStorage.getItem('username');
   },
 
   setupAxiosInterceptors: () => {
@@ -83,6 +82,7 @@ export const authService = {
       (error) => {
         if (error.response?.status === 401) {
           authService.logout();
+          window.location.reload();
         }
         return Promise.reject(error);
       }
@@ -92,11 +92,12 @@ export const authService = {
   async register(userData: RegisterDTO): Promise<AuthResponse> {
     try {
       console.log('Sending registration request:', userData);
-      const response = await axios.post(`${API_URL}/register`, userData);
+      const response = await axios.post(`${API_URL}/auth/register`, userData);
       console.log('Registration response:', response.data);
       
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
+        localStorage.setItem('username', response.data.username);
       }
       
       return response.data;

@@ -1,0 +1,11 @@
+export enum AdCategory {
+  CLOTHING = 'CLOTHING',
+  TOOLS = 'TOOLS',
+  SPORTS = 'SPORTS',
+  ACCESSORIES = 'ACCESSORIES',
+  FURNITURE = 'FURNITURE',
+  PETS = 'PETS',
+  GAMES = 'GAMES',
+  BOOKS = 'BOOKS',
+  OTHER = 'OTHER'
+} 

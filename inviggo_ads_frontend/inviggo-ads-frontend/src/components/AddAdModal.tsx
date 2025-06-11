@@ -22,7 +22,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
 
     const categories = [
         'CLOTHING', 'TOOLS', 'SPORTS', 'ACCESSORIES', 
-        'FURNITURE', 'PETS', 'GAMES', 'BOOKS', 'TECHNOLOGY'
+        'FURNITURE', 'PETS', 'GAMES', 'BOOKS',
     ];
 
     const handleSubmit = async (e: React.FormEvent) => {

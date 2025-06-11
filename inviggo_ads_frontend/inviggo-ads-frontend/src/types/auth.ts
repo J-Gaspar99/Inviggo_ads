@@ -1,7 +1,7 @@
 export interface RegisterDTO {
     username: string;
     password: string;
-    phoneNumber?: string;
+    phoneNumber: string;
 }
 
 export interface AuthResponse {

@@ -39,6 +39,24 @@ interface CreateAdResponse {
     ad: AdResponse;
 }
 
+interface Filters {
+    category?: string;
+    name?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    showMineOnly: boolean;
+}
+
+const CATEGORIES = [
+    'Electronics',
+    'Fashion',
+    'Home & Garden',
+    'Sports',
+    'Toys',
+    'Books',
+    'Other'
+];
+
 class AdService {
     // Get all ads with pagination
     async getAllAds(page: number = 0, size: number = 20): Promise<PaginatedResponse> {
@@ -123,6 +141,39 @@ class AdService {
             return response.data;
         } catch (error) {
             console.error(`Error updating ad with id ${id}:`, error);
+            throw error;
+        }
+    }
+
+    async getAds(
+        page: number = 0, 
+        size: number = 20,
+        filters?: {
+            category?: string;
+            name?: string;
+            minPrice?: number;
+            maxPrice?: number;
+            showMineOnly?: boolean;
+        }
+    ): Promise<PaginatedResponse> {
+        try {
+            const params = new URLSearchParams({
+                page: page.toString(),
+                size: size.toString()
+            });
+
+            if (filters) {
+                if (filters.category) params.append('category', filters.category);
+                if (filters.name) params.append('name', filters.name);
+                if (filters.minPrice) params.append('minPrice', filters.minPrice.toString());
+                if (filters.maxPrice) params.append('maxPrice', filters.maxPrice.toString());
+                if (filters.showMineOnly) params.append('showMineOnly', 'true');
+            }
+
+            const response = await axios.get<PaginatedResponse>(`${API_URL}/ads?${params.toString()}`);
+            return response.data;
+        } catch (error: any) {
+            console.error('Error fetching ads:', error);
             throw error;
         }
     }

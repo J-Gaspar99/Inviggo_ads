@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import logo from './logo.svg';
 import './App.css';
 import NavBar from './components/NavBar';
 import LoginForm from './components/LoginForm';
 import SignupForm from './components/SignupForm';
 import { authService } from './services/authService';
 import AddAdModal from './components/AddAdModal';
-import axios from 'axios';
+import AdsTable from './components/AdsTable';
+import { Container } from 'react-bootstrap';
 
 interface UserData {
   username: string;
@@ -21,56 +21,44 @@ function App() {
   const [showSignup, setShowSignup] = useState(false);
 
   useEffect(() => {
+    const token = authService.getToken();
+    if (token) {
     const user = authService.getCurrentUser();
-    if (user && user.token) {
+      if (user) {
       setIsLoggedIn(true);
       setUserName(user.username);
     } else {
+        authService.logout();
       setIsLoggedIn(false);
       setUserName('');
+      }
     }
   }, []);
 
   const handleLogin = async (username: string, password: string) => {
     try {
-      const userData = await authService.login(username, password);
-      
+      const response = await authService.login(username, password);
       setIsLoggedIn(true);
-      setUserName(userData.username);
-      setShowSignup(false);
+      setUserName(response.username);
       setError('');
-    } catch (err) {
-      console.error('Login error:', err);
-      if (axios.isAxiosError(err) && err.response) {
-        setError(err.response.data?.message || 'Login failed. Please check your credentials.');
-      } else {
-        setError('Login failed. An unexpected error occurred.');
-      }
-      setIsLoggedIn(false);
-      setUserName('');
-      throw err;
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed');
     }
   };
 
   const handleSignup = async (username: string, password: string, phoneNumber: string) => {
     try {
-      const response = await axios.post('http://localhost:8081/api/auth/register', {
+      const registerData = {
         username,
         password,
         phoneNumber
-      });
-      
-      console.log('Signup successful:', response.data);
-      await handleLogin(username, password);
+      };
+      const response = await authService.register(registerData);
+      setIsLoggedIn(true);
+      setUserName(response.username);
       setError('');
-    } catch (err) {
-      console.error('Signup error:', err);
-      if (axios.isAxiosError(err) && err.response) {
-        setError(err.response.data?.message || 'Registration failed. Please try again.');
-      } else {
-        setError('Registration failed. An unexpected error occurred.');
-      }
-      throw err;
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Registration failed');
     }
   };
 
@@ -97,27 +85,35 @@ function App() {
         onToggleAuth={toggleAuthForm}
         showSignup={showSignup}
       />
-      <header className="App-header">
+      <Container>
         {!isLoggedIn ? (
-          showSignup ? (
+          <div className="auth-container">
+            {showSignup ? (
             <SignupForm onSignup={handleSignup} error={error} />
           ) : (
             <LoginForm onLogin={handleLogin} error={error} />
-          )
+            )}
+          </div>
         ) : (
+          <>
           <div className="welcome-container">
             <h2>Welcome back, {userName}!</h2>
             <p>You are now logged in.</p>
           </div>
+            <AdsTable />
+          </>
         )}
-        <img src={logo} className="App-logo" alt="logo" />
-      </header>
+      </Container>
 
       <AddAdModal 
         show={showAddAdModal}
         onHide={() => setShowAddAdModal(false)}
         onAdAdded={() => {
           setShowAddAdModal(false);
+          const adsTable = document.querySelector('AdsTable');
+          if (adsTable) {
+            (adsTable as any).fetchAds(0);
+          }
         }}
       />
     </div>
