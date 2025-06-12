@@ -99,7 +99,7 @@ public class TokenUtils {
 		return request.getHeader("Authorization");
 	}
 
-    public long getExpiredIn() {  // Promenili smo povratni tip u long
+    public long getExpiredIn() {  
         return EXPIRES_IN;
     }
 

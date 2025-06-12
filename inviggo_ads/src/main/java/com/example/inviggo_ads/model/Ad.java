@@ -46,7 +46,7 @@ public class Ad {
     private LocalDateTime createdAt;
 
     @Column(name = "is_deleted", nullable = false)
-    private boolean isDeleted;
+    private boolean deleted;
 
 
     
@@ -124,15 +124,15 @@ public class Ad {
     }
 
     public void setIsDeleted(boolean b) {
-        this.isDeleted = b;
+        this.deleted = b;
     }
 
 
     public boolean getIsDeleted() {
-        return isDeleted;
+        return deleted;
     }
 
     public void setDeleted(boolean b) {
         // TODO Auto-generated method stub
-        this.isDeleted=b;    }
+        this.deleted=b;    }
 }

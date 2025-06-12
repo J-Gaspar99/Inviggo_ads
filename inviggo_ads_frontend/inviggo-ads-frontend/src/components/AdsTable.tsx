@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Pagination, Container, Form, Row, Col, Button } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle, ChangeEvent } from 'react';
+import { Table, Pagination, Container, Form, Row, Col, Button, Modal, Alert, Spinner } from 'react-bootstrap';
 import { adService } from '../services/addService';
 import { authService } from '../services/authService';
+import { AdDetails } from '../types/AdDetails';
+import AddAdModal from './AddAdModal';
+import { colors } from '@mui/material';
 
 interface Ad {
     id: string;
@@ -35,16 +38,38 @@ const CATEGORIES = [
     'TECHNOLOGY'
 ];
 
-const AdsTable: React.FC = () => {
-    const [ads, setAds] = useState<Ad[]>([]); // Will hold the current page's ads
-    const [currentPage, setCurrentPage] = useState(0);
-    const [totalPages, setTotalPages] = useState(0); // Total pages from backend
+interface AdsTableProps {
+    userName: string;  // Korisničko ime trenutno prijavljenog korisnika
+    onAdAdded?: () => void;  // Callback funkcija koja se poziva kada se doda novi oglas
+    onAdUpdated?: () => void;  // Callback funkcija koja se poziva kada se ažurira oglas
+    onAdDeleted?: () => void;  // Callback funkcija koja se poziva kada se obriše oglas
+    showFilters?: boolean;  // Da li da prikaže filtere
+    showAddButton?: boolean;  // Da li da prikaže dugme za dodavanje novog oglasa
+    showEditButton?: boolean;  // Da li da prikaže dugme za izmenu oglasa
+    showDeleteButton?: boolean;  // Da li da prikaže dugme za brisanje oglasa
+    showPagination?: boolean;  // Da li da prikaže paginaciju
+    itemsPerPage?: number;  // Broj oglasa po strani
+    sortBy?: string;  // Polje po kojem se sortira
+    sortDirection?: 'asc' | 'desc';  // Smer sortiranja
+    initialFilters?: {  // Početne vrednosti filtera
+        category?: string;
+        name?: string;
+        minPrice?: string;
+        maxPrice?: string;
+        city?: string;
+        showMineOnly?: boolean;
+    };
+}
+
+const AdsTable = forwardRef<{ refreshAds: () => void }, AdsTableProps>(({ userName = '' }, ref) => {
+    const [ads, setAds] = useState<AdDetails[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    
-    const currentUser = authService.getCurrentUser(); // Get current user
-
-    // Filter states
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [selectedAd, setSelectedAd] = useState<AdDetails | null>(null);
+    const [showAddAdModal, setShowAddAdModal] = useState(false);
+    const [adToEdit, setAdToEdit] = useState<AdDetails | null>(null);
     const [filters, setFilters] = useState({
         category: '',
         name: '',
@@ -54,62 +79,56 @@ const AdsTable: React.FC = () => {
         showMineOnly: false
     });
 
-    // Local states for price inputs to maintain focus while typing
-    const [minPriceInput, setMinPriceInput] = useState(filters.minPrice);
-    const [maxPriceInput, setMaxPriceInput] = useState(filters.maxPrice);
-
-    const fetchAds = async (page: number) => {
+    const fetchAds = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await adService.getAds(page, 20, {
-                category: filters.category || undefined,
-                name: filters.name || undefined,
-                minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
-                maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
-                showMineOnly: filters.showMineOnly
-            });
+            const response = await adService.getAdsWithFilters(currentPage, 10, filters);
             setAds(response.content);
             setTotalPages(response.totalPages);
             setError(null);
         } catch (err) {
-            setError('Failed to fetch ads. Please try again later.');
             console.error('Error fetching ads:', err);
+            setError('Error fetching ads');
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, filters]);
 
-    // Effect to fetch ads from the backend when page or filters change
+    useImperativeHandle(ref, () => ({
+        refreshAds: fetchAds
+    }));
+
     useEffect(() => {
-        fetchAds(currentPage);
-    }, [currentPage, filters]); 
+        fetchAds();
+    }, [fetchAds]);
 
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
+    const handleDeleteAd = async (id: string) => {
+        try {
+            await adService.deleteAd(id);
+            setSelectedAd(null);
+            fetchAds();
+        } catch (err) {
+            console.error('Error deleting ad:', err);
+            setError('Error deleting ad');
+        }
     };
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        if (name === 'minPrice') {
-            setMinPriceInput(value);
-        } else if (name === 'maxPrice') {
-            setMaxPriceInput(value);
-        } else {
+        
+        if (type === 'checkbox') {
+            const checked = (e.target as HTMLInputElement).checked;
             setFilters(prev => ({
                 ...prev,
-                [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+                [name]: checked
             }));
-            setCurrentPage(0); // Reset to first page for non-price filters
+            return;
         }
-    };
 
-    const handlePriceBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
         setFilters(prev => ({
             ...prev,
             [name]: value
         }));
-        setCurrentPage(0); // Reset to first page when price filter is applied
     };
 
     const handleResetFilters = () => {
@@ -121,24 +140,19 @@ const AdsTable: React.FC = () => {
             city: '',
             showMineOnly: false
         });
-        setMinPriceInput(''); // Reset local price input states
-        setMaxPriceInput(''); // Reset local price input states
-        setCurrentPage(0); // Reset to first page when filters are cleared
     };
 
     if (loading) {
-        return <div>Loading...</div>;
+        return <div className="text-center mt-4"><Spinner animation="border" /></div>;
     }
 
     if (error) {
-        return <div className="alert alert-danger">{error}</div>;
+        return <Alert variant="danger" className="mt-4">{error}</Alert>;
     }
 
     return (
         <Container className="mt-4">
-            <h2>All Ads</h2>
-            
-            {/* Filters Section */}
+            {/* Filteri */}
             <div className="mb-4 p-3 border rounded">
                 <h4>Filters</h4>
                 <Row>
@@ -175,13 +189,11 @@ const AdsTable: React.FC = () => {
                         <Form.Group>
                             <Form.Label>Min Price</Form.Label>
                             <Form.Control
-                                type="number"
+                                type="text"
                                 name="minPrice"
-                                value={minPriceInput}
+                                value={filters.minPrice}
                                 onChange={handleFilterChange}
-                                onBlur={handlePriceBlur}
                                 placeholder="Min price"
-                                min="0"
                             />
                         </Form.Group>
                     </Col>
@@ -189,32 +201,19 @@ const AdsTable: React.FC = () => {
                         <Form.Group>
                             <Form.Label>Max Price</Form.Label>
                             <Form.Control
-                                type="number"
+                                type="text"
                                 name="maxPrice"
-                                value={maxPriceInput}
+                                value={filters.maxPrice}
                                 onChange={handleFilterChange}
-                                onBlur={handlePriceBlur}
                                 placeholder="Max price"
-                                min="0"
                             />
                         </Form.Group>
                     </Col>
                 </Row>
                 <Row>
                     <Col md={3} className="mb-3">
-                        <Form.Group>
-                            <Form.Label>City</Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="city"
-                                value={filters.city}
-                                onChange={handleFilterChange}
-                                placeholder="Enter city"
-                            />
-                        </Form.Group>
-                    </Col>
-                    <Col md={3} className="mb-3">
                         <Form.Group className="mt-4">
+                            <br/>
                             <Form.Check
                                 type="checkbox"
                                 name="showMineOnly"
@@ -236,61 +235,157 @@ const AdsTable: React.FC = () => {
                 </Row>
             </div>
 
-            <Table striped bordered hover responsive>
+            {/* Tabela */}
+            <Table striped bordered hover>
                 <thead>
                     <tr>
+                        <th>Image</th>
                         <th>Name</th>
-                        <th>Description</th>
                         <th>Price</th>
                         <th>Category</th>
                         <th>City</th>
-                        <th>Posted By</th>
-                        <th>Posted At</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {ads.map((ad) => (
-                        <tr key={ad.id}>
-                            <td>{ad.name}</td>
-                            <td>{ad.description}</td>
-                            <td>${ad.price.toFixed(2)}</td>
-                            <td>{ad.category.toUpperCase()}</td>
-                            <td>{ad.city}</td>
-                            <td>{ad.username}</td>
-                            <td>{new Date(ad.createdAt).toLocaleDateString()}</td>
+                    {ads.length === 0 ? (
+                        <tr>
+                            <td colSpan={5} className="text-center">No ads found</td>
                         </tr>
-                    ))}
+                    ) : (
+                        ads.map((ad) => (
+                            <tr 
+                                key={ad.id} 
+                                onClick={() => setSelectedAd(ad)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <td>
+                                    {ad.imageUrl ? (
+                                        <img 
+                                            src={ad.imageUrl} 
+                                            alt={ad.name}
+                                            style={{ 
+                                                width: '100px', 
+                                                height: '100px', 
+                                                objectFit: 'cover',
+                                                borderRadius: '4px'
+                                            }}
+                                        />
+                                    ) : (
+                                        <div 
+                                            style={{ 
+                                                width: '100px', 
+                                                height: '100px', 
+                                                backgroundColor: '#f0f0f0',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                borderRadius: '4px'
+                                            }}
+                                        >
+                                            No Image
+                                        </div>
+                                    )}
+                                </td>
+                                <td>{ad.name}</td>
+                                <td>${ad.price.toFixed(2)}</td>
+                                <td>{ad.category.toUpperCase()}</td>
+                                <td>{ad.city}</td>
+                            </tr>
+                        ))
+                    )}
                 </tbody>
             </Table>
-            <Pagination className="justify-content-center">
-                <Pagination.First 
-                    onClick={() => handlePageChange(0)}
-                    disabled={currentPage === 0}
-                />
-                <Pagination.Prev 
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 0}
-                />
-                {[...Array(totalPages)].map((_, index) => (
-                    <Pagination.Item
-                        key={index}
-                        active={index === currentPage}
-                        onClick={() => handlePageChange(index)}
-                    >
-                        {index + 1}
-                    </Pagination.Item>
-                ))}
-                <Pagination.Next 
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages - 1}
-                />
-                <Pagination.Last 
-                    onClick={() => handlePageChange(totalPages - 1)}
-                    disabled={currentPage === totalPages - 1}
-                />
-            </Pagination>
+
+            {/* Modal za prikaz detalja oglasa */}
+            <Modal show={!!selectedAd} onHide={() => setSelectedAd(null)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>{selectedAd?.name}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedAd && (
+                        <>
+                            <div className="text-center mb-4">
+                                {selectedAd.imageUrl ? (
+                                    <img 
+                                        src={selectedAd.imageUrl} 
+                                        alt={selectedAd.name}
+                                        style={{ 
+                                            maxWidth: '100%', 
+                                            maxHeight: '400px', 
+                                            objectFit: 'contain' 
+                                        }}
+                                    />
+                                ) : (
+                                    <div 
+                                        style={{ 
+                                            width: '100%', 
+                                            height: '200px', 
+                                            backgroundColor: '#f0f0f0',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        No Image
+                                    </div>
+                                )}
+                            </div>
+                            <p><strong>Description:</strong> {selectedAd.description}</p>
+                            <p><strong>Price:</strong> ${selectedAd.price.toFixed(2)}</p>
+                            <p><strong>Category:</strong> {selectedAd.category.toUpperCase()}</p>
+                            <p><strong>City:</strong> {selectedAd.city}</p>
+                            <p><strong>Posted by:</strong> {selectedAd.username}</p>
+                            <p><strong>Posted at:</strong> {new Date(selectedAd.createdAt).toLocaleString()}</p>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <div className="d-flex justify-content-between w-100">
+                        <Button variant="secondary" onClick={() => setSelectedAd(null)}>
+                            Close
+                        </Button>
+                        {userName && selectedAd && userName === selectedAd.username && (
+                            <div>
+                                <Button 
+                                    variant="primary" 
+                                    className="me-2"
+                                    onClick={() => {
+                                        setAdToEdit(selectedAd);
+                                        setSelectedAd(null);
+                                        setShowAddAdModal(true);
+                                    }}
+                                >
+                                    Edit
+                                </Button>
+                                <Button 
+                                    variant="danger"
+                                    onClick={() => {
+                                        if (window.confirm('Are you sure you want to delete this ad?')) {
+                                            handleDeleteAd(selectedAd.id);
+                                        }
+                                    }}
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal za dodavanje/izmenu oglasa */}
+            <AddAdModal
+                show={showAddAdModal}
+                onHide={() => {
+                    setShowAddAdModal(false);
+                    setAdToEdit(null);
+                }}
+                onAdAdded={fetchAds}
+                editMode={!!adToEdit}
+                adToEdit={adToEdit}
+            />
         </Container>
     );
-};
+});
 
 export default AdsTable; 

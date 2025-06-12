@@ -54,23 +54,33 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 				LOGGER.debug("Username from token: " + username);
 				
 				if (username != null) {
-					UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-					LOGGER.debug("User details loaded: " + userDetails.getUsername());
-					
-					if (tokenUtils.validateToken(authToken, userDetails)) {
-						LOGGER.debug("Token validated successfully");
-						TokenBasedAuthentication authentication = new TokenBasedAuthentication(userDetails);
-						authentication.setToken(authToken);
-						SecurityContextHolder.getContext().setAuthentication(authentication);
-					} else {
-						LOGGER.debug("Token validation failed");
+					try {
+						UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+						LOGGER.debug("User details loaded: " + userDetails.getUsername());
+						
+						if (tokenUtils.validateToken(authToken, userDetails)) {
+							LOGGER.debug("Token validated successfully");
+							TokenBasedAuthentication authentication = new TokenBasedAuthentication(userDetails);
+							authentication.setToken(authToken);
+							SecurityContextHolder.getContext().setAuthentication(authentication);
+						} else {
+							LOGGER.debug("Token validation failed");
+							// Ne čistimo kontekst ovde, samo ne postavljamo novu autentifikaciju
+						}
+					} catch (Exception e) {
+						LOGGER.error("Error loading user details: " + e.getMessage(), e);
+						// Ne čistimo kontekst ovde, samo ne postavljamo novu autentifikaciju
 					}
 				}
 			} else {
 				LOGGER.debug("No token found in request");
 			}
+		} catch (ExpiredJwtException ex) {
+			LOGGER.error("Token expired: " + ex.getMessage());
+			SecurityContextHolder.clearContext(); // Čistimo kontekst samo ako je token istekao
 		} catch (Exception ex) {
 			LOGGER.error("Error processing token: " + ex.getMessage(), ex);
+			// Ne čistimo kontekst za ostale greške
 		}
 		
 		chain.doFilter(request, response);

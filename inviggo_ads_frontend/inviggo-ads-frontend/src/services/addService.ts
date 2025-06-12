@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { authService } from './authService';
+import { AdDetails } from '../types/AdDetails';
+import { Ad } from '../types/Ad';
 
 const API_URL = 'http://localhost:8081/api';
 
@@ -35,8 +37,13 @@ interface PaginatedResponse {
     number: number;
 }
 
-interface CreateAdResponse {
-    ad: AdResponse;
+interface CreateAdRequest {
+    name: string;
+    description: string;
+    imageUrl: string;
+    price: number;
+    category: string;
+    city: string;
 }
 
 interface Filters {
@@ -45,6 +52,15 @@ interface Filters {
     minPrice?: number;
     maxPrice?: number;
     showMineOnly: boolean;
+}
+
+interface FilterParams {
+    category?: string;
+    name?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    city?: string;
+    showMineOnly?: boolean;
 }
 
 const CATEGORIES = [
@@ -59,14 +75,18 @@ const CATEGORIES = [
 
 class AdService {
     // Get all ads with pagination
-    async getAllAds(page: number = 0, size: number = 20): Promise<PaginatedResponse> {
+    async getAllAds(page: number, size: number) {
         try {
             const response = await axios.get(`${API_URL}/ads`, {
-                params: { page, size }
+                params: {
+                    page,
+                    size
+                }
             });
+            console.log('API Response:', response.data); // Dodajemo logging
             return response.data;
         } catch (error) {
-            console.error('Error fetching ads:', error);
+            console.error('Error in getAllAds:', error);
             throw error;
         }
     }
@@ -83,66 +103,51 @@ class AdService {
     }
 
     // Create a new ad
-    async createAd(adData: any): Promise<AdResponse> {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                throw new Error('No authentication token found');
-            }
+    async createAd(ad: CreateAdRequest) {
+        const token = authService.getToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
 
-            const headers = {
+        const response = await axios.post(`${API_URL}/ads`, ad, {
+            headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
-            };
-
-            const response = await axios.post<AdResponse>(`${API_URL}/ads`, adData, { headers });
-            return response.data;
-        } catch (error: any) {
-            if (error.response?.status === 401) {
-                authService.logout();
             }
-            throw error;
-        }
+        });
+        return response.data;
     }
 
     // Delete an ad
-    async deleteAd(id: string): Promise<void> {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                throw new Error('No authentication token found');
-            }
-
-            await axios.delete(`${API_URL}/ads/${id}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-        } catch (error) {
-            console.error(`Error deleting ad with id ${id}:`, error);
-            throw error;
+    async deleteAd(id: string) {
+        const token = authService.getToken();
+        if (!token) {
+            throw new Error('No authentication token found');
         }
+
+        const response = await axios.delete(`${API_URL}/ads/${id}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
     }
 
     // Update an ad
-    async updateAd(id: string, adData: Partial<AdCreateDTO>): Promise<AdResponse> {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                throw new Error('No authentication token found');
-            }
-
-            const response = await axios.put(`${API_URL}/ads/${id}`, adData, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            return response.data;
-        } catch (error) {
-            console.error(`Error updating ad with id ${id}:`, error);
-            throw error;
+    async updateAd(id: string, ad: CreateAdRequest) {
+        const token = authService.getToken();
+        if (!token) {
+            throw new Error('No authentication token found');
         }
+
+        const response = await axios.put(`${API_URL}/ads/${id}`, ad, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
     }
 
     async getAds(
@@ -176,6 +181,33 @@ class AdService {
             console.error('Error fetching ads:', error);
             throw error;
         }
+    }
+
+    async getAdDetails(id: string) {
+        const token = localStorage.getItem('token');
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+
+        try {
+            const response = await axios.get(`${API_URL}/ads/${id}/details`, { headers });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching ad details:', error);
+            throw error;
+        }
+    }
+
+    async getAdsWithFilters(page: number, size: number, filters: FilterParams) {
+        const params = {
+            page,
+            size,
+            ...filters
+        };
+
+        const response = await axios.get(`${API_URL}/ads`, { params });
+        return response.data;
     }
 }
 

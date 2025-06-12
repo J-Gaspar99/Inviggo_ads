@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import NavBar from './components/NavBar';
 import LoginForm from './components/LoginForm';
@@ -7,6 +7,8 @@ import { authService } from './services/authService';
 import AddAdModal from './components/AddAdModal';
 import AdsTable from './components/AdsTable';
 import { Container } from 'react-bootstrap';
+import { getValue } from '@testing-library/user-event/dist/utils';
+import { alignProperty } from '@mui/material/styles/cssUtils';
 
 interface UserData {
   username: string;
@@ -14,31 +16,26 @@ interface UserData {
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showAddAdModal, setShowAddAdModal] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const adsTableRef = useRef<{ refreshAds: () => void }>(null);
 
   useEffect(() => {
-    const token = authService.getToken();
+    const token = localStorage.getItem('token');
     if (token) {
-    const user = authService.getCurrentUser();
-      if (user) {
-      setIsLoggedIn(true);
-      setUserName(user.username);
-    } else {
-        authService.logout();
-      setIsLoggedIn(false);
-      setUserName('');
-      }
+      setIsAuthenticated(true);
+      const user = authService.getCurrentUser();
+      setUserName(user);
     }
   }, []);
 
   const handleLogin = async (username: string, password: string) => {
     try {
       const response = await authService.login(username, password);
-      setIsLoggedIn(true);
+      setIsAuthenticated(true);
       setUserName(response.username);
       setError('');
     } catch (err: any) {
@@ -54,7 +51,7 @@ function App() {
         phoneNumber
       };
       const response = await authService.register(registerData);
-      setIsLoggedIn(true);
+      setIsAuthenticated(true);
       setUserName(response.username);
       setError('');
     } catch (err: any) {
@@ -64,8 +61,8 @@ function App() {
 
   const handleLogout = () => {
     authService.logout();
-    setIsLoggedIn(false);
-    setUserName('');
+    setIsAuthenticated(false);
+    setUserName(null);
     setShowSignup(false);
     setError('');
   };
@@ -78,15 +75,15 @@ function App() {
   return (
     <div className="App">
       <NavBar 
-        isLoggedIn={isLoggedIn} 
-        userName={userName}
+        isLoggedIn={isAuthenticated} 
+        userName={userName||''}
         onLogout={handleLogout}
         onAddAd={() => setShowAddAdModal(true)}
         onToggleAuth={toggleAuthForm}
         showSignup={showSignup}
       />
       <Container>
-        {!isLoggedIn ? (
+        {!isAuthenticated ? (
           <div className="auth-container">
             {showSignup ? (
             <SignupForm onSignup={handleSignup} error={error} />
@@ -100,7 +97,9 @@ function App() {
             <h2>Welcome back, {userName}!</h2>
             <p>You are now logged in.</p>
           </div>
-            <AdsTable />
+            <AdsTable ref={adsTableRef}
+                      userName={userName || ''}
+            />
           </>
         )}
       </Container>
@@ -110,10 +109,7 @@ function App() {
         onHide={() => setShowAddAdModal(false)}
         onAdAdded={() => {
           setShowAddAdModal(false);
-          const adsTable = document.querySelector('AdsTable');
-          if (adsTable) {
-            (adsTable as any).fetchAds(0);
-          }
+          adsTableRef.current?.refreshAds();
         }}
       />
     </div>

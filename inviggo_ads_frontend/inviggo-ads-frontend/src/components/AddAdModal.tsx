@@ -1,71 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form } from 'react-bootstrap';
 import { adService } from '../services/addService';
 import { authService } from '../services/authService';
+import { AdDetails } from '../types/AdDetails';
 
 interface AddAdModalProps {
     show: boolean;
     onHide: () => void;
     onAdAdded: () => void;
+    editMode?: boolean;
+    adToEdit?: AdDetails | null;
 }
 
-const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
-    const [adData, setAdData] = useState({
+const AddAdModal: React.FC<AddAdModalProps> = ({ 
+    show, 
+    onHide, 
+    onAdAdded,
+    editMode = false,
+    adToEdit = null 
+}) => {
+    const [formData, setFormData] = useState({
         name: '',
         description: '',
-        imageUrl: '',
         price: '',
-        category: 'TECHNOLOGY',
-        city: ''
+        category: '',
+        city: '',
+        imageUrl: ''
     });
     const [error, setError] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const categories = [
         'CLOTHING', 'TOOLS', 'SPORTS', 'ACCESSORIES', 
-        'FURNITURE', 'PETS', 'GAMES', 'BOOKS',
+        'FURNITURE', 'PETS', 'GAMES', 'BOOKS', 'TECHNOLOGY'
     ];
+
+    useEffect(() => {
+        if (editMode && adToEdit) {
+            setFormData({
+                name: adToEdit.name,
+                description: adToEdit.description,
+                imageUrl: adToEdit.imageUrl || '',
+                price: adToEdit.price.toString(),
+                category: adToEdit.category,
+                city: adToEdit.city
+            });
+        }
+    }, [editMode, adToEdit]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        
-        const token = authService.getToken();
-        if (!token) {
-            setError('You must be logged in to create an ad');
-            return;
-        }
+        setIsSubmitting(true);
 
         try {
-            const adDataToSend = {
-                ...adData,
-                price: parseFloat(adData.price)
+            if (!authService.isAuthenticated()) {
+                throw new Error('You must be logged in to create/edit an ad');
+            }
+
+            const adData = {
+                ...formData,
+                price: parseFloat(formData.price)
             };
-            
-            const response = await adService.createAd(adDataToSend);
-            console.log('Ad created:', response);
-            onHide();
+
+            if (editMode && adToEdit) {
+                await adService.updateAd(adToEdit.id, adData);
+            } else {
+                await adService.createAd(adData);
+            }
+
             onAdAdded();
-            setAdData({
+            onHide();
+            setFormData({
                 name: '',
                 description: '',
-                imageUrl: '',
                 price: '',
-                category: 'TECHNOLOGY',
-                city: ''
+                category: '',
+                city: '',
+                imageUrl: ''
             });
-        } catch (error: any) {
-            console.error('Error creating ad:', error);
-            if (error.response?.status === 401) {
-                setError('Your session has expired. Please log in again.');
-            } else {
-                setError(error.response?.data?.message || 'Error creating ad. Please try again.');
-            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setAdData(prev => ({
+        setFormData(prev => ({
             ...prev,
             [name]: value
         }));
@@ -74,7 +97,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
     return (
         <Modal show={show} onHide={onHide} centered>
             <Modal.Header closeButton>
-                <Modal.Title>Add New Ad</Modal.Title>
+                <Modal.Title>{editMode ? 'Edit Ad' : 'Add New Ad'}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
                 {error && (
@@ -88,7 +111,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Form.Control
                             type="text"
                             name="name"
-                            value={adData.name}
+                            value={formData.name}
                             onChange={handleChange}
                             required
                         />
@@ -99,7 +122,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Form.Control
                             as="textarea"
                             name="description"
-                            value={adData.description}
+                            value={formData.description}
                             onChange={handleChange}
                             required
                         />
@@ -110,7 +133,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Form.Control
                             type="url"
                             name="imageUrl"
-                            value={adData.imageUrl}
+                            value={formData.imageUrl}
                             onChange={handleChange}
                         />
                     </Form.Group>
@@ -120,7 +143,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Form.Control
                             type="number"
                             name="price"
-                            value={adData.price}
+                            value={formData.price}
                             onChange={handleChange}
                             required
                             min="0"
@@ -132,7 +155,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Form.Label>Category</Form.Label>
                         <Form.Select
                             name="category"
-                            value={adData.category}
+                            value={formData.category}
                             onChange={handleChange}
                             required
                         >
@@ -149,7 +172,7 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Form.Control
                             type="text"
                             name="city"
-                            value={adData.city}
+                            value={formData.city}
                             onChange={handleChange}
                             required
                         />
@@ -159,8 +182,8 @@ const AddAdModal: React.FC<AddAdModalProps> = ({ show, onHide, onAdAdded }) => {
                         <Button variant="secondary" onClick={onHide}>
                             Cancel
                         </Button>
-                        <Button variant="primary" type="submit">
-                            Create Ad
+                        <Button variant="primary" type="submit" disabled={isSubmitting}>
+                            {editMode ? 'Save Changes' : 'Create Ad'}
                         </Button>
                     </div>
                 </Form>

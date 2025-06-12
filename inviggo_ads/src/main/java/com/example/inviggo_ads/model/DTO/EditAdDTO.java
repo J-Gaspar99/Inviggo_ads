@@ -89,5 +89,10 @@ public class EditAdDTO {
     
     public void setCreatedAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
-        }  
+        }
+
+    public boolean isDeleted() {
+        // TODO Auto-generated method stub
+        return false;
+    }  
     }

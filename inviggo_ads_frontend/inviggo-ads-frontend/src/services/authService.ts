@@ -23,7 +23,50 @@ interface AuthResponse {
   username: string;
 }
 
-export const authService = {
+class AuthService {
+  private token: string | null = null;
+
+  setToken(token: string) {
+    this.token = token;
+    localStorage.setItem('token', token);
+  }
+
+  getToken(): string | null {
+    if (!this.token) {
+      this.token = localStorage.getItem('token');
+    }
+    return this.token;
+  }
+
+  removeToken() {
+    this.token = null;
+    localStorage.removeItem('token');
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.getToken();
+  }
+
+  getCurrentUser(): string | null {
+    const token = this.getToken();
+    if (!token) return null;
+    
+    try {
+      // Dekodiraj JWT token da dobiješ username
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+
+      const payload = JSON.parse(jsonPayload);
+      return payload.sub; // 'sub' je standardno polje za username u JWT
+    } catch (e) {
+      console.error('Error decoding token:', e);
+      return null;
+    }
+  }
+
   async login(username: string, password: string): Promise<LoginResponse> {
     const response = await axios.post(`${API_URL}/auth/login`, {
       username,
@@ -31,44 +74,28 @@ export const authService = {
     });
     
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
+      this.setToken(response.data.token);
       localStorage.setItem('username', response.data.username);
     }
     
     return response.data;
-  },
+  }
 
-  logout: () => {
-    localStorage.removeItem('token');
+  logout() {
+    this.removeToken();
     localStorage.removeItem('username');
-  },
+  }
 
-  getCurrentUser() {
-    const token = localStorage.getItem('token');
-    const username = localStorage.getItem('username');
-    if (token && username) {
-      return {
-        username: username,
-        token: token
-      };
-    }
-    return null;
-  },
-
-  getToken: () => {
-    return localStorage.getItem('token');
-  },
-
-  getUsername: () => {
+  getUsername() {
     return localStorage.getItem('username');
-  },
+  }
 
-  setupAxiosInterceptors: () => {
+  setupAxiosInterceptors() {
     axios.interceptors.request.use(
       (config) => {
-        const token = authService.getToken();
+        const token = this.getToken();
         if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
+          config.headers['Authorization'] = `Bearer ${token.trim()}`;
         }
         return config;
       },
@@ -81,13 +108,13 @@ export const authService = {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          authService.logout();
-          window.location.reload();
+          this.removeToken();
+          localStorage.removeItem('username');
         }
         return Promise.reject(error);
       }
     );
-  },
+  }
 
   async register(userData: RegisterDTO): Promise<AuthResponse> {
     try {
@@ -96,7 +123,7 @@ export const authService = {
       console.log('Registration response:', response.data);
       
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
+        this.setToken(response.data.token);
         localStorage.setItem('username', response.data.username);
       }
       
@@ -110,6 +137,8 @@ export const authService = {
       throw error;
     }
   }
-};
+}
+
+export const authService = new AuthService();
 
 authService.setupAxiosInterceptors(); 
