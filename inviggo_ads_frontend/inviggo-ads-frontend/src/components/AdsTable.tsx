@@ -82,7 +82,7 @@ const AdsTable = forwardRef<{ refreshAds: () => void }, AdsTableProps>(({ userNa
     const fetchAds = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await adService.getAdsWithFilters(currentPage, 10, filters);
+            const response = await adService.getAdsWithFilters(currentPage, 20, filters);
             setAds(response.content);
             setTotalPages(response.totalPages);
             setError(null);
@@ -295,6 +295,37 @@ const AdsTable = forwardRef<{ refreshAds: () => void }, AdsTableProps>(({ userNa
                     )}
                 </tbody>
             </Table>
+
+            {/* Pagination */}
+            <div className="d-flex justify-content-center mt-4">
+                <Pagination>
+                    <Pagination.First 
+                        onClick={() => setCurrentPage(0)}
+                        disabled={currentPage === 0}
+                    />
+                    <Pagination.Prev 
+                        onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                        disabled={currentPage === 0}
+                    />
+                    {[...Array(totalPages)].map((_, index) => (
+                        <Pagination.Item
+                            key={index}
+                            active={index === currentPage}
+                            onClick={() => setCurrentPage(index)}
+                        >
+                            {index + 1}
+                        </Pagination.Item>
+                    ))}
+                    <Pagination.Next 
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                        disabled={currentPage === totalPages - 1}
+                    />
+                    <Pagination.Last 
+                        onClick={() => setCurrentPage(totalPages - 1)}
+                        disabled={currentPage === totalPages - 1}
+                    />
+                </Pagination>
+            </div>
 
             {/* Modal za prikaz detalja oglasa */}
             <Modal show={!!selectedAd} onHide={() => setSelectedAd(null)} size="lg">
